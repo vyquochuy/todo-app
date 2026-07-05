@@ -1,0 +1,39 @@
+{
+  "name": "@todo-app/backend",
+  "version": "1.0.0",
+  "description": "Todo List API — Hono.js on Cloudflare Workers",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply todo-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply todo-db --remote",
+    "db:seed:local": "wrangler d1 execute todo-db --local --file=./scripts/seed.sql",
+    "db:seed:remote": "wrangler d1 execute todo-db --remote --file=./scripts/seed.sql",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.4.1",
+    "hono": "^4.5.0",
+    "nanoid": "^5.0.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "@todo-app/shared": "*",
+    "drizzle-kit": "^0.23.2",
+    "drizzle-orm": "^0.32.2",
+    "eslint": "^9.8.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.3",
+    "vitest": "^2.0.5",
+    "wrangler": "^3.68.0"
+  }
+}

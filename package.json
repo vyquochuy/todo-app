@@ -1,0 +1,21 @@
+{
+  "name": "todo-app",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "lint": "npm run lint --workspaces --if-present",
+    "type-check": "npm run type-check --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present"
+  },
+  "devDependencies": {
+    "wrangler": "^4.107.0"
+  }
+}

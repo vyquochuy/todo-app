@@ -1,0 +1,20 @@
+name = "todo-app-backend"
+main = "src/index.ts"
+compatibility_date = "2024-10-22"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare D1 database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "todo-db"
+database_id = "1574442-418d-48bc-8d85-a35fe02299da"
+
+[vars]
+ENV = "production"
+CORS_ORIGIN = "https://your-frontend.vercel.app"
+
+# Local development overrides
+[env.dev]
+[env.dev.vars]
+ENV = "development"
+CORS_ORIGIN = "http://localhost:3000"
