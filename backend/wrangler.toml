@@ -8,10 +8,11 @@ compatibility_flags = ["nodejs_compat"]
 binding = "DB"
 database_name = "todo-db"
 database_id = "21574442-418d-48bc-8d85-a35fe02299da"
+migrations_dir = "drizzle/migrations"
 
 [vars]
 ENV = "production"
-CORS_ORIGIN = "https://your-frontend.vercel.app"
+CORS_ORIGIN = "https://todo-app-frontend-eight-nu.vercel.app"
 
 # Local development overrides
 [env.dev]

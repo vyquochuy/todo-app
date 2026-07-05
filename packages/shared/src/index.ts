@@ -19,9 +19,19 @@ export {
   todoQuerySchema,
 } from "./schemas/todo.schema";
 
+export {
+  registerSchema,
+  loginSchema,
+} from "./schemas/user.schema";
+
 export type {
   CreateTodoSchema,
   UpdateTodoSchema,
   TodoQuerySchema,
 } from "./schemas/todo.schema";
+
+export type {
+  RegisterSchema,
+  LoginSchema,
+} from "./schemas/user.schema";
 

@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "sonner";
 
 /**
@@ -13,6 +13,23 @@ import { Toaster } from "sonner";
  * SSR render gets a fresh client — required for Next.js App Router.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      "serviceWorker" in navigator &&
+      process.env.NODE_ENV === "production"
+    ) {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((reg) => {
+          console.log("Service Worker registered with scope: ", reg.scope);
+        })
+        .catch((err) => {
+          console.error("Service Worker registration failed: ", err);
+        });
+    }
+  }, []);
+
   const [queryClient] = useState(
     () =>
       new QueryClient({

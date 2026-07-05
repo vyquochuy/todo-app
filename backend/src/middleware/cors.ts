@@ -33,5 +33,6 @@ declare global {
     DB: D1Database;
     CORS_ORIGIN: string;
     ENV: string;
+    JWT_SECRET: string;
   }
 }

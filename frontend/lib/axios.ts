@@ -18,9 +18,12 @@ const apiClient = axios.create({
 // ── Request interceptor ──────────────────────────────────────
 apiClient.interceptors.request.use(
   (config) => {
-    // Placeholder: attach auth token when authentication is added
-    // const token = getToken();
-    // if (token) config.headers.Authorization = `Bearer ${token}`;
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("auth_token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
     return config;
   },
   (error: unknown) => Promise.reject(error),

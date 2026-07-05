@@ -2,7 +2,7 @@
 
 import type { Todo } from "@todo-app/shared";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Header } from "@/components/layout/Header";
 import { Pagination } from "@/components/layout/Pagination";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,8 @@ const PAGE_SIZE = 10;
  * /?search=meeting&status=completed&sort=createdAt_desc&page=2
  */
 import { Suspense } from "react";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { AuthForm } from "@/features/auth/components/AuthForm";
 
 function Dashboard() {
   const router = useRouter();
@@ -203,11 +205,46 @@ function Dashboard() {
   );
 }
 
+function DashboardContent() {
+  const { user, loading } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="w-full max-w-4xl px-4 py-8 sm:px-6">
+          <TodoSkeleton count={4} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthForm />;
+  }
+
+  return <Dashboard />;
+}
+
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<TodoSkeleton count={4} />}>
-      <Dashboard />
-    </Suspense>
+    <AuthProvider>
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center bg-background">
+            <div className="w-full max-w-4xl px-4 py-8 sm:px-6">
+              <TodoSkeleton count={4} />
+            </div>
+          </div>
+        }
+      >
+        <DashboardContent />
+      </Suspense>
+    </AuthProvider>
   );
 }
 

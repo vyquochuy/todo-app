@@ -15,7 +15,15 @@ import {
   validateUpdateTodo,
 } from "../validators/todo.validator.js";
 
-const todosRouter = new Hono<{ Bindings: CloudflareBindings }>();
+const todosRouter = new Hono<{
+  Bindings: CloudflareBindings;
+  Variables: {
+    jwtPayload: { userId: string; email: string };
+  };
+}>();
+
+// Helper to extract userId from verified JWT context
+const getUserId = (c: any) => c.get("jwtPayload").userId;
 
 // ──────────────────────────────────────────────────────────────
 // GET /todos
@@ -23,8 +31,9 @@ const todosRouter = new Hono<{ Bindings: CloudflareBindings }>();
 // ──────────────────────────────────────────────────────────────
 todosRouter.get("/", validateTodoQuery, async (c) => {
   const db = createDb(c.env.DB);
+  const userId = getUserId(c);
   const query = c.req.valid("query");
-  const result = await listTodos(db, query);
+  const result = await listTodos(db, userId, query);
   return c.json(successResponse(result.items, result.meta), 200);
 });
 
@@ -33,7 +42,8 @@ todosRouter.get("/", validateTodoQuery, async (c) => {
 // ──────────────────────────────────────────────────────────────
 todosRouter.get("/:id", async (c) => {
   const db = createDb(c.env.DB);
-  const todo = await getTodoById(db, c.req.param("id"));
+  const userId = getUserId(c);
+  const todo = await getTodoById(db, userId, c.req.param("id"));
   return c.json(successResponse(todo), 200);
 });
 
@@ -43,8 +53,9 @@ todosRouter.get("/:id", async (c) => {
 // ──────────────────────────────────────────────────────────────
 todosRouter.post("/", validateCreateTodo, async (c) => {
   const db = createDb(c.env.DB);
+  const userId = getUserId(c);
   const body = c.req.valid("json");
-  const todo = await createTodo(db, body);
+  const todo = await createTodo(db, userId, body);
   return c.json(successResponse(todo), 201);
 });
 
@@ -54,8 +65,9 @@ todosRouter.post("/", validateCreateTodo, async (c) => {
 // ──────────────────────────────────────────────────────────────
 todosRouter.put("/:id", validateUpdateTodo, async (c) => {
   const db = createDb(c.env.DB);
+  const userId = getUserId(c);
   const body = c.req.valid("json");
-  const todo = await updateTodo(db, c.req.param("id"), body);
+  const todo = await updateTodo(db, userId, c.req.param("id"), body);
   return c.json(successResponse(todo), 200);
 });
 
@@ -64,7 +76,8 @@ todosRouter.put("/:id", validateUpdateTodo, async (c) => {
 // ──────────────────────────────────────────────────────────────
 todosRouter.patch("/:id/toggle", async (c) => {
   const db = createDb(c.env.DB);
-  const todo = await toggleTodoStatus(db, c.req.param("id"));
+  const userId = getUserId(c);
+  const todo = await toggleTodoStatus(db, userId, c.req.param("id"));
   return c.json(successResponse(todo), 200);
 });
 
@@ -73,7 +86,8 @@ todosRouter.patch("/:id/toggle", async (c) => {
 // ──────────────────────────────────────────────────────────────
 todosRouter.delete("/:id", async (c) => {
   const db = createDb(c.env.DB);
-  await deleteTodo(db, c.req.param("id"));
+  const userId = getUserId(c);
+  await deleteTodo(db, userId, c.req.param("id"));
   return c.json(successResponse(null), 200);
 });
 

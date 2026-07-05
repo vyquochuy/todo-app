@@ -49,17 +49,18 @@ function now(): string {
 // ============================================================
 
 /**
- * Returns a paginated, filtered, and sorted list of todos.
+ * Returns a paginated, filtered, and sorted list of todos for a specific user.
  */
 export async function listTodos(
   db: Db,
+  userId: string,
   query: TodoQuerySchema,
 ): Promise<TodoListResult> {
   const { page, pageSize, search, status, sort } = query;
   const offset = (page - 1) * pageSize;
 
   // Build WHERE clauses dynamically
-  const conditions = [];
+  const conditions = [eq(todos.userId, userId)];
 
   if (status !== "all") {
     conditions.push(eq(todos.status, status === "completed"));
@@ -71,11 +72,11 @@ export async function listTodos(
       or(
         like(todos.title, pattern),
         like(todos.description, pattern),
-      ),
+      )!,
     );
   }
 
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
 
   // Build ORDER BY
   const orderBy =
@@ -109,10 +110,14 @@ export async function listTodos(
 }
 
 /**
- * Returns a single todo by ID. Throws 404 if not found.
+ * Returns a single todo by ID, owned by the specific user. Throws 404 if not found.
  */
-export async function getTodoById(db: Db, id: string): Promise<TodoDto> {
-  const [row] = await db.select().from(todos).where(eq(todos.id, id)).limit(1);
+export async function getTodoById(db: Db, userId: string, id: string): Promise<TodoDto> {
+  const [row] = await db
+    .select()
+    .from(todos)
+    .where(and(eq(todos.id, id), eq(todos.userId, userId)))
+    .limit(1);
 
   if (!row) {
     throw new AppError(404, `Todo with id "${id}" not found`);
@@ -122,10 +127,11 @@ export async function getTodoById(db: Db, id: string): Promise<TodoDto> {
 }
 
 /**
- * Creates a new todo and returns the created entity.
+ * Creates a new todo for a specific user and returns the created entity.
  */
 export async function createTodo(
   db: Db,
+  userId: string,
   input: CreateTodoSchema,
 ): Promise<TodoDto> {
   const id = nanoid();
@@ -133,6 +139,7 @@ export async function createTodo(
 
   await db.insert(todos).values({
     id,
+    userId,
     title: input.title,
     description: input.description ?? null,
     status: false,
@@ -140,20 +147,20 @@ export async function createTodo(
     updatedAt: timestamp,
   });
 
-  // Re-fetch to return the canonical persisted shape
-  return getTodoById(db, id);
+  return getTodoById(db, userId, id);
 }
 
 /**
- * Fully updates a todo. Throws 404 if the todo does not exist.
+ * Fully updates a todo. Throws 404 if the todo does not exist or isn't owned by the user.
  */
 export async function updateTodo(
   db: Db,
+  userId: string,
   id: string,
   input: UpdateTodoSchema,
 ): Promise<TodoDto> {
-  // Guard: ensure the todo exists
-  await getTodoById(db, id);
+  // Guard: ensure the todo exists and belongs to user
+  await getTodoById(db, userId, id);
 
   await db
     .update(todos)
@@ -162,17 +169,17 @@ export async function updateTodo(
       description: input.description ?? null,
       updatedAt: now(),
     })
-    .where(eq(todos.id, id));
+    .where(and(eq(todos.id, id), eq(todos.userId, userId)));
 
-  return getTodoById(db, id);
+  return getTodoById(db, userId, id);
 }
 
 /**
  * Toggles the completion status of a todo.
- * Throws 404 if the todo does not exist.
+ * Throws 404 if the todo does not exist or isn't owned by the user.
  */
-export async function toggleTodoStatus(db: Db, id: string): Promise<TodoDto> {
-  const todo = await getTodoById(db, id);
+export async function toggleTodoStatus(db: Db, userId: string, id: string): Promise<TodoDto> {
+  const todo = await getTodoById(db, userId, id);
   const nextStatus = todo.status !== "completed";
 
   await db
@@ -181,17 +188,17 @@ export async function toggleTodoStatus(db: Db, id: string): Promise<TodoDto> {
       status: nextStatus,
       updatedAt: now(),
     })
-    .where(eq(todos.id, id));
+    .where(and(eq(todos.id, id), eq(todos.userId, userId)));
 
-  return getTodoById(db, id);
+  return getTodoById(db, userId, id);
 }
 
 /**
- * Deletes a todo. Throws 404 if the todo does not exist.
+ * Deletes a todo. Throws 404 if the todo does not exist or isn't owned by the user.
  */
-export async function deleteTodo(db: Db, id: string): Promise<void> {
+export async function deleteTodo(db: Db, userId: string, id: string): Promise<void> {
   // Guard: ensure the todo exists before deleting
-  await getTodoById(db, id);
+  await getTodoById(db, userId, id);
 
-  await db.delete(todos).where(eq(todos.id, id));
+  await db.delete(todos).where(and(eq(todos.id, id), eq(todos.userId, userId)));
 }
