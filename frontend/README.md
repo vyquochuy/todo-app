@@ -22,55 +22,61 @@ npm run dev --workspace=frontend
 frontend/
 ├── app/
 │   ├── layout.tsx          # Root layout: fonts, metadata, providers
-│   ├── page.tsx            # Dashboard: URL state, data fetching, rendering
-│   ├── globals.css         # Design tokens (CSS variables), base styles
-│   └── providers.tsx       # QueryClient, ThemeProvider, Toaster
+│   ├── page.tsx            # Dashboard: Auth checks, URL state, rendering
+│   ├── globals.css         # Design tokens (Tailwind CSS v4 CSS-first theme)
+│   └── providers.tsx       # QueryClient, ThemeProvider, Toaster, SW Registration
 │
-├── features/todo/          # Feature-based: everything todo-related
-│   ├── components/
-│   │   ├── TodoCard.tsx    # Card: checkbox, title, badge, date, actions
-│   │   ├── TodoList.tsx    # AnimatePresence wrapper for exit animations
-│   │   ├── TodoForm.tsx    # RHF + Zod form (create & edit)
-│   │   ├── TodoDialog.tsx  # Dialog wrapper for TodoForm
-│   │   ├── TodoFilters.tsx # Search + status filter + sort
-│   │   ├── TodoSkeleton.tsx# 4-card loading skeleton
-│   │   └── TodoEmpty.tsx   # Empty + Error states
-│   ├── hooks/
-│   │   └── useTodos.ts     # All TanStack Query hooks in one file
-│   └── services/
-│       └── todo.service.ts # Axios API calls (only file that knows the API)
+├── context/
+│   └── AuthContext.tsx     # Session management: JWT token state and persistence
+│
+├── features/
+│   ├── auth/
+│   │   └── components/
+│   │       └── AuthForm.tsx # Login / Registration form card (glassmorphism)
+│   └── todo/               # Feature-based: everything todo-related
+│       ├── components/
+│       │   ├── TodoCard.tsx    # Card: dropdown menu, title, badge, details
+│       │   ├── TodoList.tsx    # List container with animations
+│       │   ├── TodoForm.tsx    # RHF + Zod form (create & edit)
+│       │   ├── TodoDialog.tsx  # Dialog wrapper for TodoForm
+│       │   ├── TodoFilters.tsx # Search + status filter + sort (and w-full Add button)
+│       │   ├── TodoSkeleton.tsx# 4-card loading skeleton
+│       │   └── TodoEmpty.tsx   # Empty + Error states
+│       ├── hooks/
+│       │   └── useTodos.ts     # TanStack Query query and mutation hooks
+│       └── services/
+│           └── todo.service.ts # Axios API calls with custom interceptor headers
 │
 ├── components/
-│   ├── ui/                 # shadcn/ui primitives
+│   ├── ui/                 # shadcn/ui components (select, dialog, dropdown)
 │   └── layout/
-│       ├── Header.tsx      # Sticky header with dark mode toggle
+│       ├── Header.tsx      # Sticky header with dark mode toggle and Logout action
 │       └── Pagination.tsx  # Page numbers with ellipsis
 │
-├── hooks/
-│   └── useDebounce.ts      # Generic debounce hook
+├── public/
+│   ├── manifest.json       # PWA Manifest configuration
+│   └── sw.js               # Service Worker: cache-first logic for static assets
 │
 └── lib/
-    ├── axios.ts            # Axios instance (base URL, interceptors)
+    ├── axios.ts            # Axios instance (base URL, request interceptors for JWT)
     └── utils.ts            # cn(), formatTodoDate(), getErrorMessage()
 ```
 
 ## Key Design Decisions
 
-### URL State Sync
-All filter state (search, status, sort, page) lives in URL search params. The page is fully bookmarkable and shareable:
-```
-/?search=meeting&status=completed&sort=title_asc&page=2
-```
+### Client-Side Authentication (JWT)
+The user state and token are kept in a React context (`AuthContext.tsx`). The JWT token is persisted in `localStorage` and automatically loaded on startup.
+- **Request Interceptor**: Inside `axios.ts`, an Axios request interceptor intercepts outgoing backend connections and inserts the token as a `Bearer` token inside the `Authorization` header.
+- **Auto-Fill Evaluator Assistance**: The login form provides a 1-click button to autofill the default `test@example.com` / `password123` credentials for testing ease.
 
-### Optimistic Updates
-- **Toggle**: UI flips the checkbox immediately; rolls back if server rejects
-- **Delete**: Item disappears from list immediately; rolls back on error
+### Next.js Hydration Handling
+Because the authentication state and local cache are retrieved from browser-only databases (`localStorage`), we check `mounted` state inside `page.tsx` before rendering state-dependent routes to completely prevent SSR hydration mismatch errors.
 
-### Shared Validation
-`TodoForm` uses `zodResolver(createTodoSchema)` imported from `@todo-app/shared` — identical to what the backend validates against.
+### Progressive Web App (PWA) Offline Support
+- **manifest.json**: Configures Taskflow as an installable standalone app.
+- **sw.js**: Standard custom service worker caches core layout files on setup. API requests (`/todos/*`, `/auth/*`) bypass the cache logic, maintaining database real-time consistency.
 
-### No fetch in components
-All API calls go through `features/todo/services/todo.service.ts` → `lib/axios.ts`. Components only call hooks.
+---
 
 ## Available Scripts
 
@@ -82,9 +88,3 @@ All API calls go through `features/todo/services/todo.service.ts` → `lib/axios
 | `npm run lint` | ESLint |
 | `npm run format` | Prettier |
 | `npm run test` | Vitest |
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | ✅ | Backend API base URL (no trailing slash) |

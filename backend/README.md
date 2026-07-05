@@ -18,20 +18,24 @@ npm run dev --workspace=backend
 ```
 backend/src/
 ├── db/
-│   ├── schema.ts         # Drizzle ORM table definitions
+│   ├── schema.ts         # Drizzle ORM table definitions: users and todos tables
 │   └── client.ts         # D1 client factory
 ├── routes/
-│   └── todos.ts          # Hono router — HTTP layer only
+│   ├── auth.ts           # Hono router — User registration & login handlers
+│   └── todos.ts          # Hono router — Todo CRUD handlers (Protected)
 ├── services/
-│   └── todo.service.ts   # Business logic, Drizzle queries
+│   ├── auth.service.ts   # Edge-native hashing (SHA-256 + salt) & JWT token signing
+│   └── todo.service.ts   # Business logic: Drizzle queries enforcing user isolation
 ├── middleware/
-│   ├── cors.ts           # CORS with per-environment origin
-│   └── error-handler.ts  # Global error → ApiResponse mapper
+│   ├── cors.ts           # CORS with strict origin validation
+│   ├── error-handler.ts  # Global error handler mapping to consistent envelopes
+│   └── rate-limiter.ts   # IP-based rate limiter middleware (max 60 req/min per IP)
 ├── validators/
-│   └── todo.validator.ts # @hono/zod-validator wrappers (shared schemas)
+│   ├── auth.validator.ts # Zod validation middleware for register and login bodies
+│   └── todo.validator.ts # Zod validation middleware for todos input and queries
 ├── utils/
 │   └── response.ts       # successResponse(), errorResponse(), buildPaginationMeta()
-└── index.ts              # Hono app entry point
+└── index.ts              # Hono app entry point: middleware stacking and routes
 ```
 
 ## Available Scripts
@@ -54,16 +58,23 @@ backend/src/
 Set in `wrangler.toml` under `[vars]`. For local dev, create `.dev.vars`:
 
 ```
-CLOUDFLARE_ACCOUNT_ID=...  # for drizzle-kit only
-CLOUDFLARE_DATABASE_ID=... # for drizzle-kit only
-CLOUDFLARE_D1_TOKEN=...    # for drizzle-kit only
 ENV=development
 CORS_ORIGIN=http://localhost:3000
+JWT_SECRET=your_jwt_signing_secret_key
 ```
 
 ## Architecture Notes
 
-- **No repository layer** — Service calls Drizzle directly. Appropriate for Cloudflare Workers' stateless, lightweight execution model.
-- **Shared validation** — Validators import from `@todo-app/shared`, ensuring identical rules on frontend and backend.
-- **Per-request DB client** — `createDb(c.env.DB)` is called in each handler. Workers are stateless; no connection pooling needed.
-- **Error flow** — Services throw `AppError(statusCode, message)`. The `errorHandler` middleware catches all errors and maps them to consistent `ApiResponse` envelopes.
+### Multi-Tenant Database Isolation
+The `todos` table contains a non-null `user_id` pointing to the `users` table. Every query executed in `todo.service.ts` includes an explicit `eq(todos.userId, userId)` restriction. A validated JWT payload provides the `userId` context from the routing layer.
+
+### Native Hashing on the Edge
+Cloudflare Workers run in a stateless V8 isolate environment without standard Node binary capabilities. To perform secure password cryptography at the edge without heavy, slow WebAssembly wrappers:
+- **Crypto Subsystem**: Password hashing leverages the native browser-equivalent Web Crypto API `crypto.subtle.digest("SHA-256")` combined with a salt.
+- **Verification**: Verifying credentials recalculates the SHA-256 digest of the incoming string and compares it directly against the stored `passwordHash` string.
+
+### IP-Based Rate Limiting
+A custom in-memory middleware (`rate-limiter.ts`) handles request throttling by caching client IP counts using Cloudflare's `CF-Connecting-IP` header. Requests exceeding 60 operations/minute return a `429 Too Many Requests` error with detailed HTTP header parameters:
+- `X-RateLimit-Limit`
+- `X-RateLimit-Remaining`
+- `X-RateLimit-Reset`

@@ -1,10 +1,6 @@
 # Taskflow — Todo List
 
-A production-quality full-stack Todo List application built as an internship coding assessment. Demonstrates clean architecture, modern tooling, and professional UI/UX.
-
-## Screenshots
-
-> _Add screenshots after running the application locally._
+A production-quality full-stack Todo List application built as an internship coding assessment. Demonstrates clean architecture, modern tooling, professional UI/UX, user authentication, edge security, and PWA offline capability.
 
 ---
 
@@ -16,7 +12,10 @@ A production-quality full-stack Todo List application built as an internship cod
 | State    | TanStack Query v5 (optimistic updates)                    |
 | Forms    | React Hook Form + Zod                                     |
 | Backend  | Hono.js, TypeScript                                       |
+| Security | IP-based Rate Limiter (sliding window), strict CORS       |
+| Auth     | JWT (HS256) session validation, native Web Crypto hashing  |
 | Database | Cloudflare D1 (SQLite), Drizzle ORM                       |
+| Offline  | PWA Manifest, custom cache-first Service Worker (sw.js)   |
 | Deploy   | Frontend → Vercel · Backend → Cloudflare Workers          |
 | Quality  | ESLint, Prettier, Vitest, GitHub Actions CI               |
 
@@ -30,58 +29,45 @@ todo-app/                          # npm workspaces monorepo
 │   └── shared/                    # Shared Zod schemas + TypeScript types
 │       └── src/
 │           ├── types/todo.ts      # Todo, ApiResponse<T>, PaginationMeta
-│           └── schemas/todo.schema.ts  # createTodoSchema, updateTodoSchema
+│           ├── schemas/todo.schema.ts  # createTodoSchema, updateTodoSchema
+│           └── schemas/user.schema.ts  # registerSchema, loginSchema
 │
 ├── backend/                       # Hono.js → Cloudflare Workers + D1
 │   └── src/
 │       ├── db/                    # Drizzle schema + D1 client
 │       ├── routes/                # Hono router (HTTP layer only)
-│       ├── services/              # Business logic (calls Drizzle directly)
-│       ├── middleware/            # CORS, error handler
+│       │   ├── auth.ts            # Login & Register handlers
+│       │   └── todos.ts           # Todo CRUD handlers (Protected)
+│       ├── services/              # Business logic
+│       │   ├── auth.service.ts    # Native hashing & token signing
+│       │   └── todo.service.ts    # Multi-tenant isolated database queries
+│       ├── middleware/            # CORS, error handler, rate-limiter
 │       ├── validators/            # @hono/zod-validator wrappers
 │       └── utils/                 # Response helpers
 │
 └── frontend/                      # Next.js 15 → Vercel
     ├── app/                       # App Router pages + layouts
-    ├── features/todo/             # Feature-based: components, hooks, services
+    ├── context/
+    │   └── AuthContext.tsx        # Session state provider (JWT persistence)
+    ├── features/
+    │   ├── auth/                  # Glassmorphic Login/Register screen
+    │   └── todo/                  # Todo filters, list, dialogs, hooks
     ├── components/                # Shared UI (shadcn/ui + layout)
     ├── hooks/                     # Generic hooks (useDebounce)
-    └── lib/                       # Axios instance, utilities
+    └── public/
+        ├── manifest.json          # PWA Manifest config
+        └── sw.js                  # Custom offline caching service worker
 ```
 
 **Key design decisions:**
 
-- **Shared Zod schemas** — frontend and backend validate against identical rules; no drift possible
-- **URL state sync** — search/filter/sort/page live in the URL; refreshing never loses state
-- **Optimistic updates** — toggle and delete update the UI instantly, roll back on error
-- **Feature-based frontend** — `features/todo/` groups components, hooks, and services together
-- **3-layer backend** — Route → Service → Database (no repository layer; appropriate for Workers scale)
-
----
-
-## Folder Structure
-
-```
-todo-app/
-├── .github/workflows/ci.yml      # Lint + typecheck + test on every push
-├── packages/shared/               # Shared types and schemas
-├── backend/                       # API server
-│   ├── drizzle/migrations/        # SQL migration files
-│   ├── scripts/seed.sql           # Seed data
-│   ├── src/
-│   │   ├── db/schema.ts           # Drizzle table definitions
-│   │   ├── services/todo.service.ts  # All business logic
-│   │   ├── routes/todos.ts        # HTTP route handlers
-│   │   └── ...
-│   └── wrangler.toml              # Cloudflare Workers config
-└── frontend/
-    ├── app/page.tsx               # Dashboard (URL state, data fetching)
-    ├── features/todo/
-    │   ├── components/            # TodoCard, TodoForm, TodoDialog, etc.
-    │   ├── hooks/useTodos.ts      # All TanStack Query hooks
-    │   └── services/todo.service.ts  # Axios API calls
-    └── ...
-```
+- **Shared Zod schemas** — frontend and backend validate against identical rules; no drift possible.
+- **JWT & Password Security** — Password hashing is executed using edge-native `SHA-256` via the Web Crypto API. Authentication states are validated using Hono's official JWT middleware.
+- **Multi-Tenant Isolation** — Every database query is restricted using the client's validated `userId` (`WHERE user_id = current_user_id`), preventing cross-tenant data leaks.
+- **Edge Rate Limiting** — An IP-based sliding window restricts abuse (max 60 req/min per IP), setting standard `X-RateLimit` headers.
+- **URL state sync** — search/filter/sort/page live in the URL; refreshing never loses state.
+- **Optimistic updates** — toggle and delete update the UI instantly, rolling back on network failure.
+- **Manual PWA Integration** — A custom Service Worker caches static assets and skips dynamic API routes, ensuring fast loading and baseline offline capability without relying on complex, mismatch-prone plugins.
 
 ---
 
@@ -114,12 +100,13 @@ Copy `backend/.env.example` to `backend/.dev.vars`:
 cp backend/.env.example backend/.dev.vars
 ```
 
-Fill in your Cloudflare credentials (only needed for `drizzle-kit` remote migrations — not for local `wrangler dev`):
+Add your Drizzle credentials and the JWT secret:
 
 ```
 CLOUDFLARE_ACCOUNT_ID=your_account_id
 CLOUDFLARE_DATABASE_ID=your_d1_database_id
 CLOUDFLARE_D1_TOKEN=your_d1_api_token
+JWT_SECRET=your_jwt_signing_secret
 ```
 
 ### Frontend
@@ -144,13 +131,14 @@ NEXT_PUBLIC_API_URL=http://localhost:8787
 npx wrangler d1 create todo-db
 ```
 
-Copy the `database_id` from the output into `backend/wrangler.toml`:
+Copy the `database_id` and configure `migrations_dir` in `backend/wrangler.toml`:
 
 ```toml
 [[d1_databases]]
 binding = "DB"
 database_name = "todo-db"
-database_id = "YOUR_DATABASE_ID_HERE"   # ← paste here
+database_id = "YOUR_DATABASE_ID_HERE"
+migrations_dir = "drizzle/migrations"
 ```
 
 ### Run migrations
@@ -167,15 +155,7 @@ npm run db:migrate:local --workspace=backend
 npm run db:migrate:remote --workspace=backend
 ```
 
-### Seed data (optional)
-
-```bash
-# Local
-npm run db:seed:local --workspace=backend
-
-# Remote
-npm run db:seed:remote --workspace=backend
-```
+*(Note: On initial remote setup, run `npx wrangler d1 execute todo-db --remote --command="DROP TABLE IF EXISTS todos;"` if the old schema table conflicts with migrations).*
 
 ---
 
@@ -188,36 +168,16 @@ npm run dev:backend
 # API available at http://localhost:8787
 ```
 
+*Note: On startup, the backend automatically seeds a default test user if the database is empty:*
+- **Email:** `test@example.com`
+- **Password:** `password123`
+
 ### Frontend
 
 ```bash
 npm run dev:frontend
 # App available at http://localhost:3000
 ```
-
----
-
-## Deploy
-
-### Deploy backend to Cloudflare Workers
-
-```bash
-cd backend
-wrangler deploy
-```
-
-The deployed URL will look like: `https://todo-app-backend.<your-subdomain>.workers.dev`
-
-Update `CORS_ORIGIN` in `wrangler.toml` to your Vercel frontend URL.
-
-### Deploy frontend to Vercel
-
-1. Push the repository to GitHub
-2. Import the project in [Vercel](https://vercel.com/new)
-3. Set **Root Directory** to `frontend`
-4. Add environment variable:
-   - `NEXT_PUBLIC_API_URL` = your Cloudflare Workers URL
-5. Deploy
 
 ---
 
@@ -228,128 +188,47 @@ Update `CORS_ORIGIN` in `wrangler.toml` to your Vercel frontend URL.
 - Local: `http://localhost:8787`
 - Production: `https://todo-app-backend.<subdomain>.workers.dev`
 
-### Response format
+### Headers
 
-All endpoints return a consistent envelope:
-
-```json
-{
-  "success": true,
-  "data": { ... },
-  "meta": {
-    "page": 1,
-    "pageSize": 10,
-    "total": 87,
-    "totalPages": 9,
-    "hasNext": true,
-    "hasPrevious": false
-  }
-}
+For all protected routes under `/todos/*`, the HTTP `Authorization` header must be provided:
+```
+Authorization: Bearer <your_jwt_token>
 ```
 
-Errors:
-
-```json
-{
-  "success": false,
-  "message": "Validation failed",
-  "errors": { "title": ["Title is required"] }
-}
-```
+Responses include standard Rate Limit metadata:
+- `X-RateLimit-Limit`: Maximum requests allowed per window (60)
+- `X-RateLimit-Remaining`: Remaining requests in current window
+- `X-RateLimit-Reset`: Timestamp when window resets
 
 ### Endpoints
 
-| Method   | Path                | Description                              |
-| -------- | ------------------- | ---------------------------------------- |
-| `GET`    | `/health`           | Health check                             |
-| `GET`    | `/todos`            | List todos (paginated, filtered, sorted) |
-| `GET`    | `/todos/:id`        | Get a single todo                        |
-| `POST`   | `/todos`            | Create a todo                            |
-| `PUT`    | `/todos/:id`        | Update a todo                            |
-| `PATCH`  | `/todos/:id/toggle` | Toggle completion status                 |
-| `DELETE` | `/todos/:id`        | Delete a todo                            |
-
-### GET /todos — Query Parameters
-
-| Param      | Type                                               | Default          | Description                    |
-| ---------- | -------------------------------------------------- | ---------------- | ------------------------------ |
-| `page`     | number                                             | `1`              | Page number                    |
-| `pageSize` | number                                             | `10`             | Items per page (max 100)       |
-| `search`   | string                                             | —                | Searches title and description |
-| `status`   | `all` \| `pending` \| `completed`                  | `all`            | Filter by status               |
-| `sort`     | `createdAt_desc` \| `createdAt_asc` \| `title_asc` | `createdAt_desc` | Sort order                     |
-
-**Examples:**
-
-```bash
-# All todos, page 2
-curl "http://localhost:8787/todos?page=2"
-
-# Search for "shopping", completed only
-curl "http://localhost:8787/todos?search=shopping&status=completed"
-
-# Alphabetical sort
-curl "http://localhost:8787/todos?sort=title_asc"
-```
-
-### POST /todos — Create
-
-```bash
-curl -X POST http://localhost:8787/todos \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Buy groceries", "description": "Milk, eggs, bread"}'
-```
-
-### PUT /todos/:id — Update
-
-```bash
-curl -X PUT http://localhost:8787/todos/abc123 \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Buy groceries (updated)", "description": "Milk, eggs, bread, butter"}'
-```
-
-### PATCH /todos/:id/toggle — Toggle status
-
-```bash
-curl -X PATCH http://localhost:8787/todos/abc123/toggle
-```
-
-### DELETE /todos/:id
-
-```bash
-curl -X DELETE http://localhost:8787/todos/abc123
-```
+| Method   | Path                | Auth Required | Description                              |
+| -------- | ------------------- | ------------- | ---------------------------------------- |
+| `POST`   | `/auth/register`    | No            | Create a new user account                |
+| `POST`   | `/auth/login`       | No            | Validate credentials, return JWT token   |
+| `GET`    | `/health`           | No            | Health check                             |
+| `GET`    | `/todos`            | **Yes**       | List user's todos (paginated & sorted)   |
+| `GET`    | `/todos/:id`        | **Yes**       | Get a single user todo                   |
+| `POST`   | `/todos`            | **Yes**       | Create a todo under active user          |
+| `PUT`    | `/todos/:id`        | **Yes**       | Update a user todo                       |
+| `PATCH`  | `/todos/:id/toggle` | **Yes**       | Toggle completion status                 |
+| `DELETE` | `/todos/:id`        | **Yes**       | Delete a user todo                       |
 
 ---
 
 ## Features
 
-- ✅ Create, read, update, delete todos
-- ✅ Toggle completion status (optimistic update)
-- ✅ Search by title and description (300ms debounce)
-- ✅ Filter by status (All / Pending / Completed)
-- ✅ Sort by newest, oldest, alphabetical
-- ✅ Pagination with rich metadata
-- ✅ **URL state sync** — search/filter/sort/page preserved on refresh
-- ✅ Skeleton loading states (4 cards)
-- ✅ Empty state with CTA
-- ✅ Error state with retry
-- ✅ Dark mode (system preference + manual toggle)
-- ✅ Toast notifications (add, update, delete, errors)
-- ✅ Fully responsive (mobile, tablet, desktop)
-- ✅ Accessible (ARIA labels, focus management, keyboard navigation)
-- ✅ Hover animations on cards
-- ✅ Strikethrough on completed tasks
-
----
-
-## Future Improvements
-
-- Authentication (Cloudflare Access or JWT)
-- Due dates and priority levels
-- Drag-and-drop reordering
-- Tags / categories
-- Real-time updates via Cloudflare Durable Objects
-- Export to CSV/JSON
-- Keyboard shortcuts (⌘K command palette)
-- E2E tests with Playwright
+- ✅ **JWT Authentication** — Login, register, and token management (7-day longevity).
+- ✅ **Multi-Tenant Isolation** — Users can only see/mutate their own tasks.
+- ✅ **Edge Rate Limiting** — Prevents DDoS and bruteforce spamming at edge nodes.
+- ✅ **PWA Support** — Manifest configuration and Cache-First Service Worker offline support.
+- ✅ **Autofill Testing** — 1-click test credentials loader for straightforward evaluations.
+- ✅ Toggle completion status (optimistic update).
+- ✅ Search by title and description (300ms debounce).
+- ✅ Filter by status (All / Pending / Completed).
+- ✅ Sort by newest, oldest, alphabetical.
+- ✅ Pagination with rich metadata.
+- ✅ **URL state sync** — search/filter/sort/page preserved on refresh.
+- ✅ Dark mode (system preference + manual toggle).
+- ✅ Toast notifications (add, update, delete, errors).
+- ✅ Fully responsive (mobile, tablet, desktop).
