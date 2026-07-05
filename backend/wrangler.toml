@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "todo-db"
-database_id = "1574442-418d-48bc-8d85-a35fe02299da"
+database_id = "21574442-418d-48bc-8d85-a35fe02299da"
 
 [vars]
 ENV = "production"
