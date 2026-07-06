@@ -165,8 +165,7 @@ npm run db:seed:local --workspace=backend
 npm run db:seed:remote --workspace=backend
 ```
 
-_(Note: On initial remote setup, run `npx wrangler d1 execute todo-db --remote --command="DROP TABLE IF EXISTS todos;"` if the old schema table conflicts with migrations)._
----
+## _(Note: On initial remote setup, run `npx wrangler d1 execute todo-db --remote --command="DROP TABLE IF EXISTS todos;"` if the old schema table conflicts with migrations)._
 
 ## Run Locally
 
@@ -236,7 +235,7 @@ Responses include standard Rate Limit metadata:
 - `X-RateLimit-Remaining`: Remaining requests in current window
 - `X-RateLimit-Reset`: Timestamp when window resets
 
-### Endpoints
+### Available Endpoints (Fully Implemented)
 
 | Method   | Path                | Auth Required | Description                            |
 | -------- | ------------------- | ------------- | -------------------------------------- |
