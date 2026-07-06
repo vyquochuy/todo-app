@@ -8,12 +8,12 @@ A production-quality full-stack Todo List application built as an internship cod
 
 | Layer    | Technology                                                |
 | -------- | --------------------------------------------------------- |
-| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS, shadcn/ui |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS, shadcn/ui |
 | State    | TanStack Query v5 (optimistic updates)                    |
 | Forms    | React Hook Form + Zod                                     |
 | Backend  | Hono.js, TypeScript                                       |
 | Security | IP-based Rate Limiter (sliding window), strict CORS       |
-| Auth     | JWT (HS256) session validation, native Web Crypto hashing  |
+| Auth     | JWT (HS256) session validation, native Web Crypto hashing |
 | Database | Cloudflare D1 (SQLite), Drizzle ORM                       |
 | Offline  | PWA Manifest, custom cache-first Service Worker (sw.js)   |
 | Deploy   | Frontend → Vercel · Backend → Cloudflare Workers          |
@@ -155,8 +155,17 @@ npm run db:migrate:local --workspace=backend
 npm run db:migrate:remote --workspace=backend
 ```
 
-*(Note: On initial remote setup, run `npx wrangler d1 execute todo-db --remote --command="DROP TABLE IF EXISTS todos;"` if the old schema table conflicts with migrations).*
+### Seed data (optional)
 
+```bash
+# Local
+npm run db:seed:local --workspace=backend
+
+# Remote
+npm run db:seed:remote --workspace=backend
+```
+
+_(Note: On initial remote setup, run `npx wrangler d1 execute todo-db --remote --command="DROP TABLE IF EXISTS todos;"` if the old schema table conflicts with migrations)._
 ---
 
 ## Run Locally
@@ -168,7 +177,8 @@ npm run dev:backend
 # API available at http://localhost:8787
 ```
 
-*Note: On startup, the backend automatically seeds a default test user if the database is empty:*
+_Note: On startup, the backend automatically seeds a default test user if the database is empty:_
+
 - **Email:** `test@example.com`
 - **Password:** `password123`
 
@@ -178,6 +188,30 @@ npm run dev:backend
 npm run dev:frontend
 # App available at http://localhost:3000
 ```
+
+---
+
+## Deploy
+
+### Deploy backend to Cloudflare Workers
+
+```bash
+cd backend
+wrangler deploy
+```
+
+The deployed URL will look like: `https://todo-app-backend.<your-subdomain>.workers.dev`
+
+Update `CORS_ORIGIN` in `wrangler.toml` to your Vercel frontend URL.
+
+### Deploy frontend to Vercel
+
+1. Push the repository to GitHub
+2. Import the project in [Vercel](https://vercel.com/new)
+3. Set **Root Directory** to `frontend`
+4. Add environment variable:
+   - `NEXT_PUBLIC_API_URL` = your Cloudflare Workers URL
+5. Deploy
 
 ---
 
@@ -191,28 +225,30 @@ npm run dev:frontend
 ### Headers
 
 For all protected routes under `/todos/*`, the HTTP `Authorization` header must be provided:
+
 ```
 Authorization: Bearer <your_jwt_token>
 ```
 
 Responses include standard Rate Limit metadata:
+
 - `X-RateLimit-Limit`: Maximum requests allowed per window (60)
 - `X-RateLimit-Remaining`: Remaining requests in current window
 - `X-RateLimit-Reset`: Timestamp when window resets
 
 ### Endpoints
 
-| Method   | Path                | Auth Required | Description                              |
-| -------- | ------------------- | ------------- | ---------------------------------------- |
-| `POST`   | `/auth/register`    | No            | Create a new user account                |
-| `POST`   | `/auth/login`       | No            | Validate credentials, return JWT token   |
-| `GET`    | `/health`           | No            | Health check                             |
-| `GET`    | `/todos`            | **Yes**       | List user's todos (paginated & sorted)   |
-| `GET`    | `/todos/:id`        | **Yes**       | Get a single user todo                   |
-| `POST`   | `/todos`            | **Yes**       | Create a todo under active user          |
-| `PUT`    | `/todos/:id`        | **Yes**       | Update a user todo                       |
-| `PATCH`  | `/todos/:id/toggle` | **Yes**       | Toggle completion status                 |
-| `DELETE` | `/todos/:id`        | **Yes**       | Delete a user todo                       |
+| Method   | Path                | Auth Required | Description                            |
+| -------- | ------------------- | ------------- | -------------------------------------- |
+| `POST`   | `/auth/register`    | No            | Create a new user account              |
+| `POST`   | `/auth/login`       | No            | Validate credentials, return JWT token |
+| `GET`    | `/health`           | No            | Health check                           |
+| `GET`    | `/todos`            | **Yes**       | List user's todos (paginated & sorted) |
+| `GET`    | `/todos/:id`        | **Yes**       | Get a single user todo                 |
+| `POST`   | `/todos`            | **Yes**       | Create a todo under active user        |
+| `PUT`    | `/todos/:id`        | **Yes**       | Update a user todo                     |
+| `PATCH`  | `/todos/:id/toggle` | **Yes**       | Toggle completion status               |
+| `DELETE` | `/todos/:id`        | **Yes**       | Delete a user todo                     |
 
 ---
 

@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { createDb } from "../db/client.js";
 import {
   createTodo,
@@ -22,8 +22,15 @@ const todosRouter = new Hono<{
   };
 }>();
 
+type TodosContext = Context<{
+  Bindings: CloudflareBindings;
+  Variables: {
+    jwtPayload: { userId: string; email: string };
+  };
+}>;
+
 // Helper to extract userId from verified JWT context
-const getUserId = (c: any) => c.get("jwtPayload").userId;
+const getUserId = (c: TodosContext) => c.get("jwtPayload").userId;
 
 // ──────────────────────────────────────────────────────────────
 // GET /todos

@@ -28,12 +28,12 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241022.0",
     "@todo-app/shared": "*",
-    "drizzle-kit": "^0.23.2",
-    "drizzle-orm": "^0.32.2",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.2",
     "eslint": "^9.8.0",
     "prettier": "^3.3.3",
     "typescript": "^5.5.3",
-    "vitest": "^2.0.5",
-    "wrangler": "^3.68.0"
+    "vitest": "^3.2.6",
+    "wrangler": "^4.107.0"
   }
 }

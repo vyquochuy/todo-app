@@ -2,61 +2,42 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
-  pull_request:
     branches: [main]
+  pull_request:
 
 jobs:
-  # ── Shared package ──────────────────────────────────────────
-  shared:
-    name: Shared Package
+  quality:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
-      - name: Type-check shared
-        run: npm run type-check --workspace=packages/shared
 
-  # ── Backend ─────────────────────────────────────────────────
-  backend:
-    name: Backend
-    runs-on: ubuntu-latest
-    needs: shared
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
-      - name: Lint
-        run: npm run lint --workspace=backend
-      - name: Type-check
-        run: npm run type-check --workspace=backend
-      - name: Test
-        run: npm run test --workspace=backend
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  # ── Frontend ─────────────────────────────────────────────────
-  frontend:
-    name: Frontend
-    runs-on: ubuntu-latest
-    needs: shared
-    env:
-      NEXT_PUBLIC_API_URL: http://localhost:8787
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Lint
-        run: npm run lint --workspace=frontend
-      - name: Type-check
-        run: npm run type-check --workspace=frontend
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
       - name: Test
-        run: npm run test --workspace=frontend
+        run: npm test
+
+      - name: Deploy backend
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN is not configured; skipping backend deploy."
+            exit 0
+          fi
+          npm run deploy --workspace=backend

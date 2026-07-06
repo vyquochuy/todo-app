@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createDb } from "../db/client.js";
+import { AppError } from "../middleware/error-handler.js";
 import { registerUser, loginUser } from "../services/auth.service.js";
 import { successResponse } from "../utils/response.js";
 import { validateRegister, validateLogin } from "../validators/auth.validator.js";
@@ -24,11 +25,14 @@ authRouter.post("/register", validateRegister, async (c) => {
 authRouter.post("/login", validateLogin, async (c) => {
   const db = createDb(c.env.DB);
   const body = c.req.valid("json");
-  
-  // Use JWT secret from Cloudflare binding vars, or fallback
-  const jwtSecret = c.env.JWT_SECRET ?? "fallback-jwt-secret-key-9999";
+
+  const jwtSecret = c.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new AppError(500, "JWT_SECRET is not configured");
+  }
+
   const result = await loginUser(db, body, jwtSecret);
-  
+
   return c.json(successResponse(result), 200);
 });
 
