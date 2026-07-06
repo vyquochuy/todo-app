@@ -1,6 +1,6 @@
-# Frontend — Next.js 15
+# Frontend — Next.js 16
 
-UI for the Taskflow Todo application. Built with Next.js 15, React 19, Tailwind CSS, and shadcn/ui. Deployed to Vercel.
+UI for the Taskflow Todo application. Built with Next.js 16, React 19, Tailwind CSS, and shadcn/ui. Deployed to Vercel.
 
 ## Quick Start
 

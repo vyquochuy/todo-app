@@ -24,7 +24,7 @@ backend/src/
 │   ├── auth.ts           # Hono router — User registration & login handlers
 │   └── todos.ts          # Hono router — Todo CRUD handlers (Protected)
 ├── services/
-│   ├── auth.service.ts   # Edge-native hashing (SHA-256 + salt) & JWT token signing
+│   ├── auth.service.ts   # Edge-native hashing (PBKDF2 + random salt) & JWT token signing
 │   └── todo.service.ts   # Business logic: Drizzle queries enforcing user isolation
 ├── middleware/
 │   ├── cors.ts           # CORS with strict origin validation
@@ -70,8 +70,8 @@ The `todos` table contains a non-null `user_id` pointing to the `users` table. E
 
 ### Native Hashing on the Edge
 Cloudflare Workers run in a stateless V8 isolate environment without standard Node binary capabilities. To perform secure password cryptography at the edge without heavy, slow WebAssembly wrappers:
-- **Crypto Subsystem**: Password hashing leverages the native browser-equivalent Web Crypto API `crypto.subtle.digest("SHA-256")` combined with a salt.
-- **Verification**: Verifying credentials recalculates the SHA-256 digest of the incoming string and compares it directly against the stored `passwordHash` string.
+- **Crypto Subsystem**: Password hashing leverages the native browser-equivalent Web Crypto API utilizing PBKDF2 with a random 128-bit salt per user and 100,000 iterations (using SHA-256 as the PRF).
+- **Verification & Migration**: Verifying credentials parses the stored hash. If it is in the new PBKDF2 format, it recalculates the key bits and compares. If it is in the legacy format (SHA-256 + static salt), it verifies using the legacy logic and automatically upgrades the user's hash to PBKDF2 upon successful login.
 
 ### IP-Based Rate Limiting
 A custom in-memory middleware (`rate-limiter.ts`) handles request throttling by caching client IP counts using Cloudflare's `CF-Connecting-IP` header. Requests exceeding 60 operations/minute return a `429 Too Many Requests` error with detailed HTTP header parameters:
