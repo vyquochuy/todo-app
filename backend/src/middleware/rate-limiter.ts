@@ -6,15 +6,21 @@ import { AppError } from "./error-handler.js";
 const ipCache = new Map<string, { count: number; resetTime: number }>();
 
 const WINDOW_SIZE_MS = 60 * 1000; // 1 minute window
-const MAX_REQUESTS = 60;          // max 60 requests per minute
+const MAX_REQUESTS = 180;         // max 180 requests per minute
 
 /**
  * IP-based Rate Limiter middleware.
  *
- * Prevents DDoS and brute-force spam by limiting clients to 60 requests
- * per minute. Attaches standard rate-limiting headers to responses.
+ * Prevents DDoS and brute-force spam by limiting clients.
+ * Attaches standard rate-limiting headers to responses.
  */
 export async function rateLimiter(c: Context, next: Next) {
+  // Skip rate limiting for OPTIONS preflight requests
+  if (c.req.method === "OPTIONS") {
+    await next();
+    return;
+  }
+
   // Retrieve IP from Cloudflare's connecting header, proxy, or fallback
   const ip =
     c.req.header("CF-Connecting-IP") ||

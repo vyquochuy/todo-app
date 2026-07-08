@@ -57,6 +57,10 @@ app.get("/health", (c) =>
   c.json({ success: true, message: "OK", env: c.env.ENV }),
 );
 
+app.get("/", (c) =>
+  c.json({ success: true, message: "Welcome to Taskflow Todo API", env: c.env.ENV }),
+);
+
 // ── Routes ───────────────────────────────────────────────────
 
 // Auth routes (public)
